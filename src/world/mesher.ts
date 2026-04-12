@@ -56,10 +56,7 @@ function computeAO(
       dirs[axis] = v[axis] === 0 ? -1 : 1;
     }
 
-    // Find tangent directions as offsets
-    const s1 = isSolid(sbx + dirs[0], sby + dirs[1], sbz + dirs[2]) ? 1 : 0;
-
-    // We need to separate the two tangent axes. Build per-axis offsets.
+    // Separate the two tangent axes. Build per-axis offsets.
     // tangent axis 1: first non-normal axis, tangent axis 2: second
     let t1Axis = -1;
     let t2Axis = -1;

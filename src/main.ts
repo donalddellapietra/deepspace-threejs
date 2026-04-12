@@ -205,13 +205,15 @@ function gameLoop(): void {
   for (const code of keysJustPressed) {
     editor.handleKeyDown(code, player, world, targeted, anchor);
   }
-  keysJustPressed.clear();
 
   // Process UI commands
   processUiCommands();
 
-  // Player update
+  // Player update (needs keysJustPressed for jump)
   player.update(dt, keysDown, keysJustPressed, world, editor.viewLayer, editor.inventoryOpen || editor.colorPickerOpen);
+
+  // Clear just-pressed after all consumers have read it
+  keysJustPressed.clear();
 
   // Sync anchor
   anchor = player.getAnchor();
