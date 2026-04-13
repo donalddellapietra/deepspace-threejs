@@ -4,10 +4,11 @@
 import * as THREE from 'three';
 import { Position, NODE_PATH_LEN, clonePosition } from './world/position';
 import { GROUND_TRANSITION_DEPTH } from './world/state';
-import { slotIndex, NODE_VOXELS_PER_AXIS } from './world/tree';
+import { slotIndex, NODE_VOXELS_PER_AXIS, MAX_LAYER } from './world/tree';
 import { PLAYER_H, moveAndCollide, onGround, snapToGround } from './world/collision';
 import {
   WorldAnchor, positionToLeafCoord, bevyFromPosition, cellSizeAtLayer,
+  scaleForLayer, targetLayerFor,
 } from './world/view';
 import { WorldState } from './world/state';
 
@@ -32,7 +33,10 @@ export function spawnPosition(): Position {
 }
 
 export function spawnAnchor(): WorldAnchor {
-  return { leafCoord: positionToLeafCoord(spawnPosition()) };
+  return {
+    leafCoord: positionToLeafCoord(spawnPosition()),
+    norm: scaleForLayer(targetLayerFor(MAX_LAYER)), // 1.0 at leaf layer
+  };
 }
 
 export class Player {
@@ -89,8 +93,11 @@ export class Player {
     moveAndCollide(this.position, this.velocity, hDelta, dt, world, viewLayer);
   }
 
-  getAnchor(): WorldAnchor {
-    return { leafCoord: positionToLeafCoord(this.position) };
+  getAnchor(viewLayer: number): WorldAnchor {
+    return {
+      leafCoord: positionToLeafCoord(this.position),
+      norm: scaleForLayer(targetLayerFor(viewLayer)),
+    };
   }
 
   getBevyPosition(anchor: WorldAnchor): THREE.Vector3 {

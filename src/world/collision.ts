@@ -29,7 +29,7 @@ function playerAabb(x: number, y: number, z: number, viewCell: number): Aabb {
 // ----------------------------------------------------- local-frame helpers
 
 function localAnchor(pos: Position): WorldAnchor {
-  return { leafCoord: positionToLeafCoord(pos) };
+  return { leafCoord: positionToLeafCoord(pos), norm: 1 };
 }
 
 function localBevy(pos: Position, anchor: WorldAnchor): THREE.Vector3 {

@@ -1,5 +1,8 @@
-.mode-indicator { position: fixed; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border: 1px solid var(--hud-border); border-radius: 8px; background: var(--hud-bg); pointer-events: none; }
-.mode-layer { font-size: 18px; color: var(--text-primary); }
-.mode-save { font-size: 12px; }
-.mode-save.eligible { color: var(--save-mode-color); }
-.mode-save.warning { color: var(--save-warning-color); }
+.mode-indicator { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 16px; border: 1px solid var(--hud-border); border-radius: 8px; background: var(--hud-bg); pointer-events: none; }
+.mode-layer { font-size: 14px; color: var(--text-primary); }
+.mode-divider { font-size: 14px; color: var(--hud-border); }
+.mode-current { font-size: 14px; font-weight: 600; }
+.mode-current.terrain { color: var(--text-primary); }
+.mode-current.save { color: var(--save-mode-color); }
+.mode-current.save-warning { color: var(--save-warning-color); }
+.mode-current.entity-edit { color: #4ade80; }

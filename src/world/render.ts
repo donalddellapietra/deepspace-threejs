@@ -109,11 +109,12 @@ function walk(
     const frame = stack.pop()!;
     const { nodeId, pathKey, originLeaves, depth } = frame;
 
-    // Bevy-space origin
-    const ox = Number(originLeaves[0] - anchor.leafCoord[0]);
-    const oy = Number(originLeaves[1] - anchor.leafCoord[1]);
-    const oz = Number(originLeaves[2] - anchor.leafCoord[2]);
-    const extent = extentForLayer(depth);
+    // Bevy-space origin (normalized)
+    const n = anchor.norm;
+    const ox = Number(originLeaves[0] - anchor.leafCoord[0]) / n;
+    const oy = Number(originLeaves[1] - anchor.leafCoord[1]) / n;
+    const oz = Number(originLeaves[2] - anchor.leafCoord[2]) / n;
+    const extent = extentForLayer(depth) / n;
 
     // AABB distance to camera
     const dx = Math.max(ox - cameraPos.x, 0, cameraPos.x - (ox + extent));
@@ -126,7 +127,7 @@ function walk(
         pathKey,
         nodeId,
         originLeaves,
-        scale: scaleForLayer(targetLayer),
+        scale: scaleForLayer(targetLayer) / anchor.norm,
       });
       continue;
     }
@@ -134,7 +135,7 @@ function walk(
     const node = world.library.get(nodeId);
     if (!node) continue;
     if (!node.children) {
-      visits.push({ pathKey, nodeId, originLeaves, scale: scaleForLayer(depth) });
+      visits.push({ pathKey, nodeId, originLeaves, scale: scaleForLayer(depth) / anchor.norm });
       continue;
     }
 
@@ -176,7 +177,7 @@ export class WorldRenderer {
   render(world: WorldState, viewLayer: number, anchor: WorldAnchor, cameraPos: THREE.Vector3): void {
     const targetLayer = targetLayerFor(viewLayer);
     const emitLayer = Math.max(targetLayer - 1, 0);
-    const radiusBevy = RADIUS_VIEW_CELLS * cellSizeAtLayer(viewLayer);
+    const radiusBevy = RADIUS_VIEW_CELLS * (cellSizeAtLayer(viewLayer) / anchor.norm);
 
     // If emit layer changed, clear everything
     if (emitLayer !== this.lastEmitLayer) {
@@ -193,9 +194,10 @@ export class WorldRenderer {
     const alive = new Map<string, { group: THREE.Group; nodeId: NodeId }>();
 
     for (const visit of visits) {
-      const ox = Number(visit.originLeaves[0] - anchor.leafCoord[0]);
-      const oy = Number(visit.originLeaves[1] - anchor.leafCoord[1]);
-      const oz = Number(visit.originLeaves[2] - anchor.leafCoord[2]);
+      const n = anchor.norm;
+      const ox = Number(visit.originLeaves[0] - anchor.leafCoord[0]) / n;
+      const oy = Number(visit.originLeaves[1] - anchor.leafCoord[1]) / n;
+      const oz = Number(visit.originLeaves[2] - anchor.leafCoord[2]) / n;
 
       const existing = this.entities.get(visit.pathKey);
       if (existing && existing.nodeId === visit.nodeId) {

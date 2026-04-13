@@ -13,10 +13,14 @@ import { WorldState, worldExtentVoxels } from './state';
 
 export interface WorldAnchor {
   leafCoord: [bigint, bigint, bigint];
+  /** Normalization divisor: how many leaf voxels equal one Bevy unit.
+   *  Set to scaleForLayer(targetLayerFor(zoom.layer)) so that
+   *  Bevy-space coordinates stay bounded (~800 units) regardless of zoom. */
+  norm: number;
 }
 
 export function defaultAnchor(): WorldAnchor {
-  return { leafCoord: [0n, 0n, 0n] };
+  return { leafCoord: [0n, 0n, 0n], norm: 1 };
 }
 
 // ----------------------------------------------------- per-layer sizes
@@ -85,22 +89,33 @@ export function positionFromLeafCoord(coord: [bigint, bigint, bigint]): Position
   };
 }
 
+// i64 leaf-coord delta, normalized to Bevy units by dividing by anchor.norm.
+function deltaAsVec3(target: [bigint, bigint, bigint], anchor: WorldAnchor): THREE.Vector3 {
+  const n = anchor.norm;
+  return new THREE.Vector3(
+    Number(target[0] - anchor.leafCoord[0]) / n,
+    Number(target[1] - anchor.leafCoord[1]) / n,
+    Number(target[2] - anchor.leafCoord[2]) / n,
+  );
+}
+
 // ------------------------------------------------------ conversions
 
 export function bevyFromPosition(pos: Position, anchor: WorldAnchor): THREE.Vector3 {
   const coord = positionToLeafCoord(pos);
-  return new THREE.Vector3(
-    Number(coord[0] - anchor.leafCoord[0]) + pos.offset[0],
-    Number(coord[1] - anchor.leafCoord[1]) + pos.offset[1],
-    Number(coord[2] - anchor.leafCoord[2]) + pos.offset[2],
+  const n = anchor.norm;
+  return deltaAsVec3(coord, anchor).add(
+    new THREE.Vector3(pos.offset[0] / n, pos.offset[1] / n, pos.offset[2] / n),
   );
 }
 
 export function positionFromBevy(bevy: THREE.Vector3, anchor: WorldAnchor): Position | null {
   if (!isFinite(bevy.x) || !isFinite(bevy.y) || !isFinite(bevy.z)) return null;
-  const fx = Math.floor(bevy.x);
-  const fy = Math.floor(bevy.y);
-  const fz = Math.floor(bevy.z);
+  // Scale back from normalized Bevy units to leaf units
+  const leaf = bevy.clone().multiplyScalar(anchor.norm);
+  const fx = Math.floor(leaf.x);
+  const fy = Math.floor(leaf.y);
+  const fz = Math.floor(leaf.z);
   const coord: [bigint, bigint, bigint] = [
     anchor.leafCoord[0] + BigInt(fx),
     anchor.leafCoord[1] + BigInt(fy),
@@ -108,14 +123,12 @@ export function positionFromBevy(bevy: THREE.Vector3, anchor: WorldAnchor): Posi
   ];
   const pos = positionFromLeafCoord(coord);
   if (!pos) return null;
-  pos.offset = [bevy.x - fx, bevy.y - fy, bevy.z - fz];
+  pos.offset = [leaf.x - fx, leaf.y - fy, leaf.z - fz];
   return pos;
 }
 
 export function layerPosFromBevy(
-  bevy: THREE.Vector3,
-  layer: number,
-  anchor: WorldAnchor,
+  bevy: THREE.Vector3, layer: number, anchor: WorldAnchor,
 ): LayerPos | null {
   const leaf = positionFromBevy(bevy, anchor);
   if (!leaf) return null;
@@ -125,15 +138,15 @@ export function layerPosFromBevy(
 // ------------------------------------------------------ cell origin
 
 export function cellOriginForAnchor(anchor: WorldAnchor, cellSizeLeaves: bigint): THREE.Vector3 {
-  // rem_euclid for BigInt
   const remEuclid = (a: bigint, b: bigint): bigint => {
     const r = a % b;
     return r < 0n ? r + b : r;
   };
+  const n = anchor.norm;
   return new THREE.Vector3(
-    -Number(remEuclid(anchor.leafCoord[0], cellSizeLeaves)),
-    -Number(remEuclid(anchor.leafCoord[1], cellSizeLeaves)),
-    -Number(remEuclid(anchor.leafCoord[2], cellSizeLeaves)),
+    -Number(remEuclid(anchor.leafCoord[0], cellSizeLeaves)) / n,
+    -Number(remEuclid(anchor.leafCoord[1], cellSizeLeaves)) / n,
+    -Number(remEuclid(anchor.leafCoord[2], cellSizeLeaves)) / n,
   );
 }
 
@@ -150,8 +163,6 @@ export function layerPosMinLeafCoord(lp: LayerPos): [bigint, bigint, bigint] {
     coord[2] += BigInt(sz) * childExtent;
     extent = childExtent;
   }
-  // After descending lp.layer slots, extent is the node's axis size.
-  // A cell is extent/25 leaves wide.
   const cellSizeLeaves = extent / BigInt(NODE_VOXELS_PER_AXIS);
   coord[0] += BigInt(lp.cell[0]) * cellSizeLeaves;
   coord[1] += BigInt(lp.cell[1]) * cellSizeLeaves;
@@ -160,18 +171,12 @@ export function layerPosMinLeafCoord(lp: LayerPos): [bigint, bigint, bigint] {
 }
 
 export function bevyOriginOfLayerPos(lp: LayerPos, anchor: WorldAnchor): THREE.Vector3 {
-  const leaf = layerPosMinLeafCoord(lp);
-  return new THREE.Vector3(
-    Number(leaf[0] - anchor.leafCoord[0]),
-    Number(leaf[1] - anchor.leafCoord[1]),
-    Number(leaf[2] - anchor.leafCoord[2]),
-  );
+  return deltaAsVec3(layerPosMinLeafCoord(lp), anchor);
 }
 
 export function bevyCenterOfLayerPos(lp: LayerPos, anchor: WorldAnchor): THREE.Vector3 {
-  const cell = cellSizeAtLayer(lp.layer);
-  const origin = bevyOriginOfLayerPos(lp, anchor);
-  return origin.addScalar(cell * 0.5);
+  const cell = scaleForLayer(lp.layer) / anchor.norm; // anchor.cell_bevy(lp.layer)
+  return bevyOriginOfLayerPos(lp, anchor).addScalar(cell * 0.5);
 }
 
 // -------------------------------------------------------- solidity
@@ -190,4 +195,35 @@ export function isLayerPosSolid(world: WorldState, lp: LayerPos): boolean {
   if (!node) return false;
   const v = node.voxels[voxelIdx(lp.cell[0], lp.cell[1], lp.cell[2])];
   return v !== EMPTY_VOXEL;
+}
+
+// -------------------------------------------- direct leaf-coord → LayerPos
+
+export function layerPosFromLeafCoordDirect(
+  coord: [bigint, bigint, bigint], layer: number,
+): LayerPos | null {
+  const worldMax = worldExtentVoxels();
+  if (coord[0] < 0n || coord[1] < 0n || coord[2] < 0n ||
+      coord[0] >= worldMax || coord[1] >= worldMax || coord[2] >= worldMax) {
+    return null;
+  }
+  const rem: [bigint, bigint, bigint] = [coord[0], coord[1], coord[2]];
+  const path = new Uint8Array(NODE_PATH_LEN);
+  let extent = worldMax;
+  for (let depth = 0; depth < layer; depth++) {
+    const childExtent = extent / 5n;
+    const sx = Number(rem[0] / childExtent);
+    const sy = Number(rem[1] / childExtent);
+    const sz = Number(rem[2] / childExtent);
+    path[depth] = slotIndex(sx, sy, sz);
+    rem[0] -= BigInt(sx) * childExtent;
+    rem[1] -= BigInt(sy) * childExtent;
+    rem[2] -= BigInt(sz) * childExtent;
+    extent = childExtent;
+  }
+  const cellLeaves = extent / BigInt(NODE_VOXELS_PER_AXIS);
+  const cx = Number(rem[0] / cellLeaves);
+  const cy = Number(rem[1] / cellLeaves);
+  const cz = Number(rem[2] / cellLeaves);
+  return { pathSlots: path, cell: [cx, cy, cz], layer };
 }

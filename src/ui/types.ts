@@ -41,6 +41,7 @@ export interface ModeIndicatorState {
   layer: number;
   saveMode: boolean;
   saveEligible: boolean;
+  entityEditMode: boolean;
 }
 
 export interface ToastMessage {

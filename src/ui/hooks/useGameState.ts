@@ -16,7 +16,7 @@ function createStore<T>(initial: T) {
 export const hotbarStore = createStore<HotbarState>({ active: 0, slots: [], layer: 2 });
 export const inventoryStore = createStore<InventoryState>({ open: false, builtinBlocks: [], customBlocks: [], savedMeshes: [], layer: 2 });
 export const colorPickerStore = createStore<ColorPickerState>({ open: false, r: 0.5, g: 0.5, b: 0.5 });
-export const modeIndicatorStore = createStore<ModeIndicatorState>({ layer: 2, saveMode: false, saveEligible: false });
+export const modeIndicatorStore = createStore<ModeIndicatorState>({ layer: 2, saveMode: false, saveEligible: false, entityEditMode: false });
 export const toastStore = createStore<ToastMessage | null>(null);
 
 export function useHotbar(): HotbarState {

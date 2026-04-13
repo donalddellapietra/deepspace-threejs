@@ -9,7 +9,8 @@ import { Player } from '../player';
 import { snapToGround } from '../world/collision';
 import { TargetedBlock } from '../interaction/mod';
 import { editAtLayerPos, installSubtree, subtreePathForLayerPos } from '../world/edit';
-import { targetLayerFor, cellSizeAtLayer, bevyCenterOfLayerPos, layerPosFromBevy, WorldAnchor } from '../world/view';
+import { targetLayerFor, cellSizeAtLayer, bevyCenterOfLayerPos, layerPosFromBevy, WorldAnchor, scaleForLayer } from '../world/view';
+import { ZoomTransition } from '../camera';
 import { LayerPos } from '../world/position';
 import { NodeId } from '../world/tree';
 
@@ -77,13 +78,16 @@ export class EditorState {
   viewLayer = MAX_LAYER;
   hotbar = new Hotbar();
   saveMode = new SaveMode();
+  entityEditMode = false;
   inventoryOpen = false;
   colorPickerOpen = false;
   colorPickerRgb: [number, number, number] = [0.5, 0.5, 0.5];
 
-  zoomIn(player: Player, world: WorldState): boolean {
+  zoomIn(player: Player, world: WorldState, zoomTransition: ZoomTransition): boolean {
     if (this.viewLayer < MAX_ZOOM) {
+      const oldLayer = this.viewLayer;
       this.viewLayer++;
+      zoomTransition.start(oldLayer, this.viewLayer);
       snapToGround(player.position, world, this.viewLayer);
       player.velocity.y = 0;
       return true;
@@ -91,9 +95,11 @@ export class EditorState {
     return false;
   }
 
-  zoomOut(player: Player, world: WorldState): boolean {
+  zoomOut(player: Player, world: WorldState, zoomTransition: ZoomTransition): boolean {
     if (this.viewLayer > MIN_ZOOM) {
+      const oldLayer = this.viewLayer;
       this.viewLayer--;
+      zoomTransition.start(oldLayer, this.viewLayer);
       snapToGround(player.position, world, this.viewLayer);
       player.velocity.y = 0;
       return true;
@@ -104,6 +110,7 @@ export class EditorState {
   handleKeyDown(
     code: string, player: Player, world: WorldState,
     targeted: TargetedBlock, anchor: WorldAnchor,
+    zoomTransition: ZoomTransition,
   ): void {
     if (this.inventoryOpen || this.colorPickerOpen) {
       if (code === 'KeyE') this.inventoryOpen = false;
@@ -116,8 +123,8 @@ export class EditorState {
     }
 
     // Zoom
-    if (code === 'KeyF') this.zoomIn(player, world);
-    if (code === 'KeyQ') this.zoomOut(player, world);
+    if (code === 'KeyF') this.zoomIn(player, world, zoomTransition);
+    if (code === 'KeyQ') this.zoomOut(player, world, zoomTransition);
 
     // Reset
     if (code === 'KeyR') player.reset(world, this.viewLayer);
@@ -128,6 +135,9 @@ export class EditorState {
 
     // Save mode
     if (code === 'KeyV') this.saveMode.toggle();
+
+    // Entity edit mode
+    if (code === 'KeyG') this.entityEditMode = !this.entityEditMode;
 
     // Hotbar slots
     const digitKeys = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0'];
@@ -169,7 +179,7 @@ export class EditorState {
     } else if (button === 2) {
       // Right click: place block
       if (!targeted.hitLayerPos || !targeted.normal) return;
-      const cs = cellSizeAtLayer(this.viewLayer);
+      const cs = scaleForLayer(this.viewLayer) / anchor.norm; // cell_bevy
       const hitCenter = bevyCenterOfLayerPos(targeted.hitLayerPos, anchor);
       const placeCenter = hitCenter.clone().addScaledVector(targeted.normal, cs);
       const placeLp = layerPosFromBevy(placeCenter, this.viewLayer, anchor);

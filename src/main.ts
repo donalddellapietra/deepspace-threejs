@@ -158,6 +158,7 @@ function pushUiState(): void {
     layer: viewLayer,
     saveMode: editor.saveMode.active,
     saveEligible: editor.saveMode.eligible(viewLayer),
+    entityEditMode: editor.entityEditMode,
   });
 }
 
@@ -203,7 +204,7 @@ function gameLoop(): void {
 
   // Process keyboard input for editor
   for (const code of keysJustPressed) {
-    editor.handleKeyDown(code, player, world, targeted, anchor);
+    editor.handleKeyDown(code, player, world, targeted, anchor, fpsCamera.zoomTransition);
   }
 
   // Process UI commands
@@ -216,10 +217,10 @@ function gameLoop(): void {
   keysJustPressed.clear();
 
   // Sync anchor
-  anchor = player.getAnchor();
+  anchor = player.getAnchor(editor.viewLayer);
 
   // Camera
-  fpsCamera.update(player, editor.viewLayer, anchor);
+  fpsCamera.update(player, editor.viewLayer, anchor, dt);
 
   // Interaction (raycast)
   const cameraPos = fpsCamera.camera.position.clone();
@@ -228,7 +229,7 @@ function gameLoop(): void {
 
   // Highlight
   if (targeted.hitLayerPos && !editor.saveMode.active) {
-    const cs = cellSizeAtLayer(editor.viewLayer);
+    const cs = cellSizeAtLayer(editor.viewLayer) / anchor.norm;
     const origin = bevyOriginOfLayerPos(targeted.hitLayerPos, anchor);
     highlightBox.position.set(origin.x + cs * 0.5, origin.y + cs * 0.5, origin.z + cs * 0.5);
     highlightBox.scale.setScalar(cs * 1.02);

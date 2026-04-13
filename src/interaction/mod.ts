@@ -31,9 +31,10 @@ function ddaViewCells(
   world: WorldState, viewLayer: number,
   origin: THREE.Vector3, dir: THREE.Vector3, anchor: WorldAnchor,
 ): [LayerPos, THREE.Vector3] | null {
-  const cellSize = cellSizeAtLayer(viewLayer);
-  const cellSizeBI = BigInt(Math.round(cellSize));
+  const cellSizeLeaves = cellSizeAtLayer(viewLayer);
+  const cellSizeBI = BigInt(Math.round(cellSizeLeaves));
   const cellOrigin = cellOriginForAnchor(anchor, cellSizeBI);
+  const cellSize = cellSizeLeaves / anchor.norm; // normalized Bevy units
 
   const local = new THREE.Vector3().subVectors(origin, cellOrigin);
   const pos = new THREE.Vector3(
